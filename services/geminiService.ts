@@ -36,31 +36,6 @@ const CITY_COORDINATES: Record<CityKey, { lat: number; lon: number; twn_url: str
   },
 };
 
-// Simulated current regional alerts for NB (Environment Canada Fallbacks)
-const FALLBACK_ALERTS: Record<CityKey, WeatherAlert[]> = {
-  Fredericton: [
-    {
-      severity: 'Moderate',
-      title: 'Special Weather Statement: Saint John River Levels',
-      description: 'Environment Canada is monitoring potential ice jams as water levels rise. Residents in low-lying areas should remain vigilant.'
-    }
-  ],
-  Moncton: [
-    {
-      severity: 'Severe',
-      title: 'Wind Warning: Significant Gusts Expected',
-      description: 'Strong winds gusting up to 90 km/h are expected along coastal areas this evening. Damage to buildings, such as to roof shingles and windows, may occur.'
-    }
-  ],
-  McGivney: [
-    {
-      severity: 'Moderate',
-      title: 'Winter Weather Travel Advisory: Blowing Snow',
-      description: 'Blowing snow is expected to significantly reduce visibility. Travel is expected to be hazardous due to reduced visibility in some locations.'
-    }
-  ]
-};
-
 export const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
 const pendingRequests: Record<string, Promise<CityWeatherData>> = {};
@@ -126,17 +101,17 @@ const fetchSearchGroundedData = async (city: CityKey, currentTemp: number, condi
   if (isCurrentlyRateLimited()) {
     return { 
       data: { 
-        alerts: FALLBACK_ALERTS[city], // Inject simulated EC alerts during quota issues
-        snowDayProbability: 15, 
-        snowDayReasoning: "Manual Fallback: Reviewing regional school board updates due to heavy winds.", 
-        powerOutageProbability: city === 'Moncton' ? 45 : 10, 
-        powerOutageReasoning: "Manual Fallback: High wind warnings active in coastal zones.", 
-        roadConditions: { status: 'Fair', summary: 'Caution advised on bridges and open highways.' }, 
+        alerts: [], 
+        snowDayProbability: 0, 
+        snowDayReasoning: "Advanced analysis paused due to rate limits.", 
+        powerOutageProbability: 0, 
+        powerOutageReasoning: "Advanced analysis paused due to rate limits.", 
+        roadConditions: { status: 'Unknown', summary: 'Analysis paused.' }, 
         significantWeather: [], 
         periodOutlooks: [], 
         minuteCast: { summary: 'Detailed minute-cast temporarily unavailable.', data: [] } 
       }, 
-      searchSources: [{ uri: CITY_COORDINATES[city].twn_url, title: 'Environment Canada (Simulated Fallback)' }],
+      searchSources: [{ uri: CITY_COORDINATES[city].twn_url, title: 'Environment Canada (Uplink Paused)' }],
       aiStatus: 'rate_limited' as const
     };
   }
@@ -199,17 +174,17 @@ const fetchSearchGroundedData = async (city: CityKey, currentTemp: number, condi
         rateLimitResetTime = Date.now() + RATE_LIMIT_COOLDOWN;
         return { 
             data: { 
-              alerts: FALLBACK_ALERTS[city], // Inject fallback alerts even on first error
-              snowDayProbability: 15, 
-              snowDayReasoning: "System is in backup mode. Basic analysis enabled.", 
-              powerOutageProbability: city === 'Moncton' ? 30 : 5, 
-              powerOutageReasoning: "High wind advisory (Fallback).", 
-              roadConditions: { status: 'Fair', summary: 'System in backup mode. Use caution.' }, 
+              alerts: [], 
+              snowDayProbability: 0, 
+              snowDayReasoning: "Advanced analysis paused due to rate limits.", 
+              powerOutageProbability: 0, 
+              powerOutageReasoning: "Advanced analysis paused due to rate limits.", 
+              roadConditions: { status: 'Unknown', summary: 'Analysis paused.' }, 
               significantWeather: [], 
               periodOutlooks: [], 
-              minuteCast: { summary: 'Detailed forecast paused during system high-load.', data: [] } 
+              minuteCast: { summary: 'Detailed minute-cast temporarily unavailable.', data: [] } 
             }, 
-            searchSources: [{ uri: CITY_COORDINATES[city].twn_url, title: 'Environment Canada (Emergency Backup)' }],
+            searchSources: [{ uri: CITY_COORDINATES[city].twn_url, title: 'Environment Canada (Uplink Paused)' }],
             aiStatus: 'rate_limited' as const
         };
     }
@@ -227,7 +202,7 @@ export const fetchWeatherForCity = async (city: CityKey, ignoreCache: boolean = 
   const now = Date.now();
   
   if (isCurrentlyRateLimited() && cached) {
-      return { ...cached.data, isStale: true, cacheTimestamp: cached.timestamp, aiStatus: 'rate_limited', alerts: FALLBACK_ALERTS[city] };
+      return { ...cached.data, isStale: true, cacheTimestamp: cached.timestamp, aiStatus: 'rate_limited' };
   }
 
   if (!ignoreCache && cached && (now - cached.timestamp < CACHE_TTL)) {
@@ -290,7 +265,7 @@ export const fetchWeatherForCity = async (city: CityKey, ignoreCache: boolean = 
         daily,
         significantWeather: searchData.significantWeather,
         periodOutlooks: searchData.periodOutlooks,
-        alerts: searchData.alerts.length > 0 ? searchData.alerts : FALLBACK_ALERTS[city],
+        alerts: searchData.alerts,
         lastUpdated,
         sources: searchSources,
         isStale: aiStatus === 'rate_limited',
@@ -304,7 +279,7 @@ export const fetchWeatherForCity = async (city: CityKey, ignoreCache: boolean = 
       console.error(`Failed to fetch weather for ${city}:`, error);
       const staleData = getCache(city);
       if (staleData) {
-        return { ...staleData.data, isStale: true, cacheTimestamp: staleData.timestamp, alerts: FALLBACK_ALERTS[city] };
+        return { ...staleData.data, isStale: true, cacheTimestamp: staleData.timestamp };
       }
       throw error;
     } finally {

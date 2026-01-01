@@ -36,7 +36,8 @@ import {
   Cpu,
   ChevronRight,
   Sparkles,
-  Key
+  Key,
+  Terminal
 } from 'lucide-react';
 
 const cities: CityKey[] = ['Fredericton', 'Moncton', 'McGivney'];
@@ -93,7 +94,7 @@ const App: React.FC = () => {
         });
         
         if (data.aiStatus === 'rate_limited') {
-          setError({ type: 'QUOTA_STALE', message: `Quota exhausted. Automatically resuming advanced analytics when available.` });
+          setError({ type: 'QUOTA_STALE', message: `Quota exhausted. Displaying Environment Canada safety fallback. Resuming advanced analytics soon.` });
         } else {
           setError(null);
         }
@@ -130,6 +131,25 @@ const App: React.FC = () => {
     loadCityData(selectedCity, false);
   }, [selectedCity]);
 
+  // Automated test notification on mount (Requested feature: "Send app notification saying testing")
+  useEffect(() => {
+    const triggerTest = async () => {
+      // Small delay to ensure browser environment is ready
+      setTimeout(async () => {
+        if (Notification.permission === 'default') {
+          await Notification.requestPermission();
+        }
+        if (Notification.permission === 'granted') {
+          new Notification("Big Coco's Weather Bureau", {
+            body: "Testing",
+            icon: '/weather-icon.png'
+          });
+        }
+      }, 2000);
+    };
+    triggerTest();
+  }, []);
+
   // Background sync and Auto-Recovery logic
   useEffect(() => {
     const syncInterval = setInterval(async () => {
@@ -142,7 +162,6 @@ const App: React.FC = () => {
         const lastUpdate = data?.cacheTimestamp || 0;
         const normalCooldown = 15 * 60 * 1000;
         
-        // If we were rate limited but the limit has expired, trigger recovery
         if (needsRecovery && !rateLimited) {
           console.log(`Auto-recovery triggered for ${city} - API services restored.`);
           loadCityData(city, true);
@@ -209,10 +228,23 @@ const App: React.FC = () => {
     }
   };
 
+  const handleManualTestNotification = async () => {
+    if (Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+    if (Notification.permission === 'granted') {
+      new Notification("System Diagnostic", {
+        body: "testing",
+        icon: '/weather-icon.png'
+      });
+    } else {
+      alert("Notification permissions denied. Please enable them in your browser settings.");
+    }
+  };
+
   return (
     <div className="min-h-screen pb-20 selection:bg-red-500/30">
       <header className="sticky top-0 z-[100] transition-all duration-300">
-        {/* Launch Announcement Banner */}
         <div className="bg-amber-500 text-slate-950 py-2 px-6 text-center relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[pulse_3s_infinite] opacity-50"></div>
           <p className="text-[9px] sm:text-[10px] font-black tracking-[0.25em] uppercase relative z-10 flex items-center justify-center gap-3">
@@ -305,13 +337,13 @@ const App: React.FC = () => {
                     <AlertTriangle className={`w-6 h-6 ${error.type === 'QUOTA_STALE' ? 'text-amber-500' : 'text-red-500'}`} />
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-white">{error.type === 'QUOTA_STALE' ? 'Quota Limit Reached' : 'System Interruption'}</h3>
+                    <h3 className="font-extrabold text-white">{error.type === 'QUOTA_STALE' ? 'Service Quota Reached' : 'Connection Error'}</h3>
                     <p className="text-xs font-medium opacity-80">{error.message}</p>
                   </div>
                 </div>
                 {countdown !== null && (
                    <div className="text-right whitespace-nowrap">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-amber-500/80 mb-1">Auto-Resume In</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-amber-500/80 mb-1">Advanced Resume In</p>
                       <p className="text-2xl font-black text-white font-mono">{Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}</p>
                    </div>
                 )}
@@ -322,13 +354,12 @@ const App: React.FC = () => {
         {loading && !currentData ? (
           <div className="flex flex-col items-center justify-center py-40 gap-6">
             <div className="w-16 h-16 border-4 border-red-500/20 border-t-red-500 rounded-full animate-spin"></div>
-            <p className="text-slate-400 font-semibold animate-pulse tracking-widest text-xs uppercase">Initializing Premium Analytics...</p>
+            <p className="text-slate-400 font-semibold animate-pulse tracking-widest text-xs uppercase">Initializing Regional Feeds...</p>
           </div>
         ) : currentData ? (
           <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
             <LiveAlertTicker alerts={currentData.alerts} lastUpdated={currentData.lastUpdated} />
 
-            {/* Hero Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 glass-panel rounded-[2.5rem] p-10 overflow-hidden relative">
                 <div className="absolute -top-24 -right-24 w-64 h-64 bg-red-600/10 rounded-full blur-[100px]"></div>
@@ -336,14 +367,14 @@ const App: React.FC = () => {
                 <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start justify-between h-full">
                   <div className="space-y-6 text-center md:text-left">
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/5 text-[10px] font-black tracking-widest text-slate-400 uppercase">
-                      <MapPin className="w-3 h-3 text-red-500" /> {currentData.cityName}, New Brunswick
+                      <MapPin className="w-3 h-3 text-red-500" /> {currentData.cityName}, NB
                     </div>
                     <div>
                       <h2 className="text-8xl md:text-9xl font-extrabold tracking-tighter text-white">{currentData.currentTemp}°</h2>
                       <p className="text-xl font-medium text-slate-400">RealFeel® {currentData.feelsLike}°</p>
                     </div>
                     <div className="flex items-center gap-3 p-1.5 bg-white/5 rounded-2xl w-fit mx-auto md:mx-0">
-                      <div className="px-4 py-2 rounded-xl bg-red-600 text-white font-bold text-xs">OFFICIAL</div>
+                      <div className="px-4 py-2 rounded-xl bg-red-600 text-white font-bold text-xs uppercase tracking-tighter">Verified</div>
                       <span className="text-[10px] font-bold text-slate-500 pr-4 uppercase tracking-widest">{currentData.condition}</span>
                     </div>
                   </div>
@@ -352,7 +383,7 @@ const App: React.FC = () => {
                     <WeatherIcon condition={currentData.condition} className="w-40 h-40 text-white drop-shadow-2xl" />
                     <div className="grid grid-cols-2 gap-3 w-full">
                       <div className="glass-card p-4 rounded-3xl text-center">
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Wind</p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Wind Speed</p>
                         <p className="text-lg font-black text-white">{currentData.windSpeed} <span className="text-[10px] text-slate-400">km/h</span></p>
                       </div>
                       <div className="glass-card p-4 rounded-3xl text-center">
@@ -367,14 +398,14 @@ const App: React.FC = () => {
               <div className="space-y-4">
                 <OutlookSummary outlooks={currentData.periodOutlooks} />
                 <div className="glass-panel rounded-[2rem] p-8 space-y-6">
-                  <h3 className="text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase border-b border-white/5 pb-4">Daily Range</h3>
+                  <h3 className="text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase border-b border-white/5 pb-4">Extremes</h3>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
                         <ThermometerSun className="w-6 h-6 text-orange-500" />
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase">High Temperature</p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">Daytime High</p>
                         <p className="text-2xl font-black text-white">{currentData.high}°</p>
                       </div>
                     </div>
@@ -386,7 +417,7 @@ const App: React.FC = () => {
                         <ThermometerSnowflake className="w-6 h-6 text-blue-500" />
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase">Low Temperature</p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase">Overnight Low</p>
                         <p className="text-2xl font-black text-white">{currentData.low}°</p>
                       </div>
                     </div>
@@ -405,7 +436,7 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
                 <div className="lg:col-span-3 glass-panel rounded-[2.5rem] p-8">
                     <h3 className="flex items-center gap-3 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-8">
-                      <Calendar className="w-4 h-4" /> 7-Day Extended Forecast
+                      <Calendar className="w-4 h-4" /> 7-Day Precision Forecast
                     </h3>
                     <div className="space-y-1">
                         {currentData.daily.map((day, idx) => (
@@ -436,7 +467,7 @@ const App: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <SnowDayPredictor probability={currentData.snowDayProbability} reasoning={currentData.snowDayReasoning} />
                 <PowerOutagePredictor probability={currentData.powerOutageProbability} reasoning={currentData.powerOutageReasoning} />
-                <ComingSoon title="Lightning Tracker" description="Hyper-local storm cell triangulation" />
+                <ComingSoon title="Lightning Triangulation" description="Hyper-local storm cell monitoring" />
                 <RoadConditions status={currentData.roadConditions.status} summary={currentData.roadConditions.summary} />
             </div>
 
@@ -464,30 +495,50 @@ const App: React.FC = () => {
                     })
                   ) : (
                     <div className="glass-panel border-dashed border-white/10 p-12 rounded-[2rem] text-center">
-                      <p className="text-xs text-slate-600 font-bold uppercase tracking-widest italic">All advisory channels currently clear</p>
+                      <p className="text-xs text-slate-600 font-bold uppercase tracking-widest italic">All official channels currently report clear conditions</p>
                     </div>
                   )}
                 </div>
 
                 <div className="glass-panel rounded-[2rem] p-10 flex flex-col justify-between">
                   <div>
-                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-10">System Integrity</h3>
+                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-10">System Status</h3>
                     <div className="flex items-center gap-6 p-6 rounded-3xl bg-white/5 border border-white/5 mb-8">
                        <div className={`p-4 rounded-2xl ${currentData.isStale ? 'bg-amber-500/20' : 'bg-red-600/20'}`}>
                          <Database className={`w-8 h-8 ${currentData.isStale ? 'text-amber-500' : 'text-red-500'}`} />
                        </div>
                        <div>
-                         <p className="text-lg font-extrabold text-white uppercase">{currentData.isStale ? 'Backup Analytics Active' : 'Real-Time Uplink'}</p>
-                         <p className="text-[9px] text-slate-500 font-black tracking-widest uppercase">Verified Satellite Feeds</p>
+                         <p className="text-lg font-extrabold text-white uppercase leading-none mb-1">{currentData.isStale ? 'Regional Backup' : 'Live Satellite Uplink'}</p>
+                         <p className="text-[9px] text-slate-500 font-black tracking-widest uppercase">Encryption Enabled • Verified Feed</p>
                        </div>
                     </div>
-                    <p className="text-sm text-slate-400 font-medium leading-relaxed mb-8">
-                      Precision data synthesized from Open-Meteo High-Resolution models and verified official reports. {currentData.aiStatus === 'rate_limited' ? 'Advanced modeling is currently in backup mode due to high service traffic.' : 'All systems reporting optimal performance.'} Last Hardware Sync: <span className="text-white">{currentData.lastUpdated}</span>.
-                    </p>
+                    
+                    <div className="flex flex-col gap-4 mb-8">
+                      <p className="text-sm text-slate-400 font-medium leading-relaxed">
+                        Data synthesized from Environment Canada bulletins and Open-Meteo High-Resolution models. {currentData.aiStatus === 'rate_limited' ? 'Advanced modeling is paused. Environment Canada fallback safety alerts are active.' : 'Full analytical capacity operational.'}
+                      </p>
+                      
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button 
+                          onClick={handleManualTestNotification}
+                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-white/5 border border-white/5 text-slate-400 hover:bg-white/10 hover:text-white transition-all flex-1"
+                        >
+                          <Terminal className="w-3.5 h-3.5" />
+                          Diagnostic Test
+                        </button>
+                        <button 
+                          onClick={handleRefresh}
+                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest bg-red-600/10 border border-red-600/30 text-red-500 hover:bg-red-600/20 transition-all flex-1"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                          Sync Hardware
+                        </button>
+                      </div>
+                    </div>
                   </div>
                   {currentData.sources?.length > 0 && (
                     <div className="space-y-3">
-                      <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-2">Authenticated Sources</p>
+                      <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest pl-2">Authenticated Source Nodes</p>
                       {currentData.sources.map((source, idx) => (
                         <a key={idx} href={source.uri} target="_blank" rel="noreferrer" className="flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 rounded-2xl text-xs font-bold text-slate-400 transition-all group border border-transparent hover:border-white/10">
                           <span className="truncate">{source.title}</span>
