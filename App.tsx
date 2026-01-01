@@ -37,7 +37,8 @@ import {
   ChevronRight,
   Sparkles,
   Key,
-  Terminal
+  Terminal,
+  X
 } from 'lucide-react';
 
 const cities: CityKey[] = ['Fredericton', 'Moncton', 'McGivney'];
@@ -67,6 +68,7 @@ const App: React.FC = () => {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [globalAlertStatus, setGlobalAlertStatus] = useState<{ status: 'idle' | 'checking' | 'success' | 'error', lastChecked: string | null }>({ status: 'idle', lastChecked: null });
   const [isMonitoring, setIsMonitoring] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState<boolean>(true);
   const sentAlertsRef = useRef<Set<string>>(new Set());
 
   // Function to load data for a specific city
@@ -244,6 +246,43 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen pb-20 selection:bg-red-500/30">
+      {/* Preview Mode Modal */}
+      {showPreviewModal && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-in fade-in duration-500">
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setShowPreviewModal(false)}></div>
+          <div className="relative glass-panel w-full max-w-lg rounded-[3rem] p-12 overflow-hidden shadow-[0_0_50px_rgba(239,68,68,0.2)] border-red-500/20 animate-in zoom-in-95 slide-in-from-bottom-8 duration-700">
+            <div className="absolute top-0 right-0 p-8">
+              <button onClick={() => setShowPreviewModal(false)} className="text-slate-500 hover:text-white transition-colors">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex flex-col items-center text-center space-y-8">
+              <div className="w-20 h-20 bg-amber-500/10 rounded-3xl flex items-center justify-center border border-amber-500/30">
+                <Sparkles className="w-10 h-10 text-amber-500" />
+              </div>
+              
+              <div className="space-y-4">
+                <p className="text-[10px] font-black tracking-[0.4em] uppercase text-amber-500">SYSTEM ANNOUNCEMENT</p>
+                <h2 className="text-3xl font-black text-white leading-tight">APP PREVIEW MODE</h2>
+                <div className="h-px bg-gradient-to-r from-transparent via-amber-500/30 to-transparent w-full"></div>
+                <p className="text-lg font-bold text-slate-300">ALL FEATURES WILL BE AVAILABLE AT LAUNCH</p>
+                <p className="text-xs font-medium text-slate-500 leading-relaxed max-w-xs mx-auto">
+                  You are viewing the preliminary dashboard for Big Coco's Premium Weather Bureau. Some advanced meteorological nodes are still initializing.
+                </p>
+              </div>
+
+              <button 
+                onClick={() => setShowPreviewModal(false)}
+                className="w-full bg-white text-slate-950 py-5 rounded-2xl font-black text-xs tracking-widest uppercase hover:bg-red-600 hover:text-white transition-all shadow-2xl"
+              >
+                ENTER BUREAU
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="sticky top-0 z-[100] transition-all duration-300">
         <div className="bg-amber-500 text-slate-950 py-2 px-6 text-center relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[pulse_3s_infinite] opacity-50"></div>
