@@ -354,7 +354,7 @@ const App: React.FC = () => {
       </main>
       <footer className="max-w-7xl mx-auto px-6 mt-20 text-center">
         <div className="h-px bg-gradient-to-r from-transparent via-white/5 to-transparent mb-8"></div>
-        <p className="text-[9px] text-slate-600 font-black tracking-[0.3em] uppercase">Big Coco's Weather Bureau • New Brunswick Division • © 2024</p>
+        <p className="text-[9px] text-slate-600 font-black tracking-[0.3em] uppercase">Big Coco's Weather Bureau • New Brunswick Division • © 2026</p>
       </footer>
     </div>
   );
