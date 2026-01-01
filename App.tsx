@@ -32,7 +32,8 @@ import {
   Activity,
   Umbrella,
   ThermometerSun,
-  ThermometerSnowflake
+  ThermometerSnowflake,
+  Cpu
 } from 'lucide-react';
 
 const cities: CityKey[] = ['Fredericton', 'Moncton', 'McGivney'];
@@ -249,9 +250,17 @@ const App: React.FC = () => {
         </div>
         <nav className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 p-4">
           <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-             <div className="flex items-center gap-2 text-[10px] text-red-400 font-bold uppercase tracking-wider">
-                <Database className="w-3 h-3" />
-                <span>Source: Open-Meteo &amp; Gemini</span>
+             <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+               <div className="flex items-center gap-2 text-[10px] text-red-400 font-bold uppercase tracking-wider">
+                  <Database className="w-3 h-3" />
+                  <span>Source: Open-Meteo &amp; Gemini</span>
+               </div>
+               {currentData?.aiStatus === 'rate_limited' && (
+                 <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold uppercase tracking-wider">
+                   <Cpu className="w-3 h-3" />
+                   <span>AI Limit Reached • Features Paused</span>
+                 </div>
+               )}
              </div>
             <div className="flex items-center gap-2 flex-wrap md:flex-nowrap">
               <div className="flex bg-slate-800 rounded-xl p-1 shadow-inner border border-slate-700/50 order-2 md:order-1">

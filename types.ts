@@ -76,6 +76,7 @@ export interface CityWeatherData {
   sources: { uri: string; title: string }[];
   isStale?: boolean;
   cacheTimestamp?: number;
+  aiStatus?: 'active' | 'rate_limited' | 'failed';
 }
 
 export type CityKey = 'Fredericton' | 'Moncton' | 'McGivney';

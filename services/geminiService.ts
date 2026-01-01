@@ -29,6 +29,10 @@ export const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
 const pendingRequests: Record<string, Promise<CityWeatherData>> = {};
 
+// Rate Limiting State
+let rateLimitResetTime = 0;
+const RATE_LIMIT_COOLDOWN = 60 * 1000; // 1 minute
+
 const getCache = (city: CityKey): { data: CityWeatherData, timestamp: number } | null => {
   try {
     const item = localStorage.getItem(`weather_cache_v13_search_${city}`);
@@ -81,6 +85,26 @@ const fetchOpenMeteoData = async (city: CityKey) => {
 };
 
 const fetchSearchGroundedData = async (city: CityKey, currentTemp: number, condition: string) => {
+  // Check if we are currently rate limited
+  if (Date.now() < rateLimitResetTime) {
+    console.warn("Gemini API rate limit active. Skipping AI fetch.");
+    return { 
+      data: { 
+        alerts: [], 
+        snowDayProbability: 0, 
+        snowDayReasoning: "AI analysis paused due to high traffic.", 
+        powerOutageProbability: 0, 
+        powerOutageReasoning: "AI analysis paused due to high traffic.", 
+        roadConditions: { status: 'Unknown', summary: 'AI analysis paused.' }, 
+        significantWeather: [], 
+        periodOutlooks: [], 
+        minuteCast: { summary: 'Forecast temporarily unavailable.', data: [] } 
+      }, 
+      searchSources: [],
+      aiStatus: 'rate_limited' as const
+    };
+  }
+
   const { twn_url, accuweather_url } = CITY_COORDINATES[city];
   
   const prompt = `
@@ -207,12 +231,37 @@ const fetchSearchGroundedData = async (city: CityKey, currentTemp: number, condi
       title: chunk.web?.title || 'Search Source'
     })).filter((s: any) => s.uri !== '') || [];
 
-    return { data, searchSources };
-  } catch (error) {
+    return { data, searchSources, aiStatus: 'active' as const };
+  } catch (error: any) {
     console.error("Search fetch failed", error);
+    
+    // Auto-disable if rate limit hit (429) or quota exceeded
+    const isRateLimit = error.message?.includes('429') || error.status === 429 || error.message?.includes('exhausted');
+    
+    if (isRateLimit) {
+        console.warn("Rate limit detected. Enabling cooldown.");
+        rateLimitResetTime = Date.now() + RATE_LIMIT_COOLDOWN;
+        return { 
+            data: { 
+                alerts: [], 
+                snowDayProbability: 0, 
+                snowDayReasoning: "AI analysis paused due to high traffic.", 
+                powerOutageProbability: 0, 
+                powerOutageReasoning: "AI analysis paused due to high traffic.", 
+                roadConditions: { status: 'Unknown', summary: 'AI analysis paused.' }, 
+                significantWeather: [], 
+                periodOutlooks: [], 
+                minuteCast: { summary: 'Forecast temporarily unavailable.', data: [] } 
+            }, 
+            searchSources: [],
+            aiStatus: 'rate_limited' as const
+        };
+    }
+
     return { 
       data: { alerts: [], snowDayProbability: 0, snowDayReasoning: "Search failed to initialize.", powerOutageProbability: 0, powerOutageReasoning: "Search failed to initialize.", roadConditions: { status: 'Unknown', summary: 'Could not retrieve road condition data.' }, significantWeather: [], periodOutlooks: [], minuteCast: { summary: 'Could not retrieve forecast.', data: [] } }, 
-      searchSources: [] 
+      searchSources: [],
+      aiStatus: 'failed' as const
     };
   }
 };
@@ -234,7 +283,7 @@ export const fetchWeatherForCity = async (city: CityKey, ignoreCache: boolean = 
       const currentTemp = Math.round(meteoData.current.temperature_2m);
       const feelsLikeTemp = Math.round(meteoData.current.apparent_temperature);
 
-      const { data: searchData, searchSources } = await fetchSearchGroundedData(city, currentTemp, currentCondition);
+      const { data: searchData, searchSources, aiStatus } = await fetchSearchGroundedData(city, currentTemp, currentCondition);
       
       const validSeverities: WeatherAlert['severity'][] = ['Minor', 'Moderate', 'Severe', 'Extreme'];
       const validatedAlerts: WeatherAlert[] = (Array.isArray(searchData.alerts) ? searchData.alerts : [])
@@ -343,6 +392,7 @@ export const fetchWeatherForCity = async (city: CityKey, ignoreCache: boolean = 
         lastUpdated,
         sources: searchSources,
         isStale: false,
+        aiStatus: aiStatus // Store the status
       };
 
       setCache(city, finalData);
