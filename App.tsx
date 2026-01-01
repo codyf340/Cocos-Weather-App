@@ -253,12 +253,12 @@ const App: React.FC = () => {
              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
                <div className="flex items-center gap-2 text-[10px] text-red-400 font-bold uppercase tracking-wider">
                   <Database className="w-3 h-3" />
-                  <span>Source: Open-Meteo &amp; Gemini</span>
+                  <span>Source: Open-Meteo &amp; Advanced Models</span>
                </div>
                {currentData?.aiStatus === 'rate_limited' && (
                  <div className="flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-bold uppercase tracking-wider">
                    <Cpu className="w-3 h-3" />
-                   <span>AI Limit Reached • Features Paused</span>
+                   <span>System Limit Reached • Features Paused</span>
                  </div>
                )}
              </div>
@@ -433,7 +433,7 @@ const App: React.FC = () => {
                        <Database className={`w-8 h-8 ${currentData.isStale ? 'text-amber-500' : 'text-red-500'}`} />
                        <div>
                          <p className="text-sm font-bold text-slate-200">{currentData.isStale ? 'Using Offline Backup' : 'Live Official Data'}</p>
-                         <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Open-Meteo &amp; Gemini</p>
+                         <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Open-Meteo &amp; Advanced Models</p>
                        </div>
                     </div>
                     <p className="text-sm text-slate-400 leading-relaxed mb-6">Extracted from: <span className="font-bold text-slate-300">{currentData.stationName}</span>. {currentData.isStale && " API connection is currently limited, showing last successful sync."}</p>

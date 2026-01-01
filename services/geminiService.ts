@@ -87,15 +87,15 @@ const fetchOpenMeteoData = async (city: CityKey) => {
 const fetchSearchGroundedData = async (city: CityKey, currentTemp: number, condition: string) => {
   // Check if we are currently rate limited
   if (Date.now() < rateLimitResetTime) {
-    console.warn("Gemini API rate limit active. Skipping AI fetch.");
+    console.warn("API rate limit active. Skipping advanced fetch.");
     return { 
       data: { 
         alerts: [], 
         snowDayProbability: 0, 
-        snowDayReasoning: "AI analysis paused due to high traffic.", 
+        snowDayReasoning: "Advanced analysis paused due to high traffic.", 
         powerOutageProbability: 0, 
-        powerOutageReasoning: "AI analysis paused due to high traffic.", 
-        roadConditions: { status: 'Unknown', summary: 'AI analysis paused.' }, 
+        powerOutageReasoning: "Advanced analysis paused due to high traffic.", 
+        roadConditions: { status: 'Unknown', summary: 'Analysis paused.' }, 
         significantWeather: [], 
         periodOutlooks: [], 
         minuteCast: { summary: 'Forecast temporarily unavailable.', data: [] } 
@@ -222,8 +222,8 @@ const fetchSearchGroundedData = async (city: CityKey, currentTemp: number, condi
     try {
         data = JSON.parse(text);
     } catch (e) {
-        console.error("Failed to parse JSON from Gemini:", text);
-        data = { alerts: [], snowDayProbability: 0, snowDayReasoning: "AI response format error.", powerOutageProbability: 0, powerOutageReasoning: "AI response format error.", roadConditions: { status: 'Unknown', summary: 'Could not retrieve road condition data.' }, significantWeather: [], periodOutlooks: [], minuteCast: { summary: 'Could not retrieve forecast.', data: [] } };
+        console.error("Failed to parse JSON from service:", text);
+        data = { alerts: [], snowDayProbability: 0, snowDayReasoning: "Data response format error.", powerOutageProbability: 0, powerOutageReasoning: "Data response format error.", roadConditions: { status: 'Unknown', summary: 'Could not retrieve road condition data.' }, significantWeather: [], periodOutlooks: [], minuteCast: { summary: 'Could not retrieve forecast.', data: [] } };
     }
     
     const searchSources = response.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((chunk: any) => ({
@@ -245,10 +245,10 @@ const fetchSearchGroundedData = async (city: CityKey, currentTemp: number, condi
             data: { 
                 alerts: [], 
                 snowDayProbability: 0, 
-                snowDayReasoning: "AI analysis paused due to high traffic.", 
+                snowDayReasoning: "Advanced analysis paused due to high traffic.", 
                 powerOutageProbability: 0, 
-                powerOutageReasoning: "AI analysis paused due to high traffic.", 
-                roadConditions: { status: 'Unknown', summary: 'AI analysis paused.' }, 
+                powerOutageReasoning: "Advanced analysis paused due to high traffic.", 
+                roadConditions: { status: 'Unknown', summary: 'Analysis paused.' }, 
                 significantWeather: [], 
                 periodOutlooks: [], 
                 minuteCast: { summary: 'Forecast temporarily unavailable.', data: [] } 

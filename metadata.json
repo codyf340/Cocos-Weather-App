@@ -1,6 +1,6 @@
 {
   "name": "Big Coco's Official Weather App",
-  "description": "A premium weather dashboard for Fredericton, Moncton, and McGivney with 24-hour forecasts, active alerts, and an AI-driven Snow Day Probability engine.",
+  "description": "A premium weather dashboard for Fredericton, Moncton, and McGivney with 24-hour forecasts, active alerts, and a smart Snow Day Probability engine.",
   "requestFramePermissions": [
     "geolocation"
   ]
