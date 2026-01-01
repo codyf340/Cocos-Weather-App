@@ -34,7 +34,8 @@ import {
   ThermometerSun,
   ThermometerSnowflake,
   Cpu,
-  ChevronRight
+  ChevronRight,
+  Sparkles
 } from 'lucide-react';
 
 const cities: CityKey[] = ['Fredericton', 'Moncton', 'McGivney'];
@@ -103,6 +104,16 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen pb-20 selection:bg-red-500/30">
       <header className="sticky top-0 z-[100] transition-all duration-300">
+        {/* Launch Announcement Banner */}
+        <div className="bg-amber-500 text-slate-950 py-2 px-6 text-center relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[pulse_3s_infinite] opacity-50"></div>
+          <p className="text-[9px] sm:text-[10px] font-black tracking-[0.25em] uppercase relative z-10 flex items-center justify-center gap-3">
+            <Sparkles className="w-3 h-3 shrink-0" />
+            <span>APP LAUNCH - COMING SOON, SOME FEATURES WILL TEMPORARILY BE UNAVAILABLE</span>
+            <Sparkles className="w-3 h-3 shrink-0" />
+          </p>
+        </div>
+        
         <div className="bg-red-600 h-1 w-full"></div>
         <div className="glass-panel border-b border-white/5 py-4">
           <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
