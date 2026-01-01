@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchWeatherForCity, CACHE_TTL } from './services/geminiService';
+import { fetchWeatherForCity, CACHE_TTL, isCurrentlyRateLimited, getRateLimitResetTime } from './services/geminiService';
 import { CityWeatherData, CityKey } from './types';
 import SnowDayPredictor from './components/SnowDayPredictor';
 import PowerOutagePredictor from './components/PowerOutagePredictor';
@@ -35,7 +35,8 @@ import {
   ThermometerSnowflake,
   Cpu,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Key
 } from 'lucide-react';
 
 const cities: CityKey[] = ['Fredericton', 'Moncton', 'McGivney'];
@@ -67,39 +68,146 @@ const App: React.FC = () => {
   const [isMonitoring, setIsMonitoring] = useState(false);
   const sentAlertsRef = useRef<Set<string>>(new Set());
 
+  // Function to load data for a specific city
   const loadCityData = useCallback(async (city: CityKey, isManual: boolean = false) => {
     const existingData = weatherData[city];
-    if (existingData && !existingData.isStale && !isManual) return;
-    if (isManual) { if (refreshing) return; setRefreshing(true); } else if (!existingData) { setLoading(true); }
+    
+    if (city === selectedCity && isManual && refreshing) return;
+
+    if (isManual && city === selectedCity) {
+      setRefreshing(true);
+    } else if (!existingData && city === selectedCity) {
+      setLoading(true);
+    }
+
     setGlobalAlertStatus(prev => ({ ...prev, status: 'checking' }));
-    setError(null);
+    
     try {
       const data = await fetchWeatherForCity(city, isManual);
       setWeatherData(prev => ({ ...prev, [city]: data }));
-      setGlobalAlertStatus({ status: 'success', lastChecked: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
-      if (data.isStale) setError({ type: 'QUOTA_STALE', message: `Displaying cached data. Connection busy.` });
+      
+      if (city === selectedCity) {
+        setGlobalAlertStatus({ 
+          status: 'success', 
+          lastChecked: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+        });
+        
+        if (data.aiStatus === 'rate_limited') {
+          setError({ type: 'QUOTA_STALE', message: `Quota exhausted. Automatically resuming advanced analytics when available.` });
+        } else {
+          setError(null);
+        }
+      }
     } catch (err: any) {
-       setGlobalAlertStatus(prev => ({ ...prev, status: 'error' }));
-       setError({ type: 'PROXY', message: `Weather services unreachable. Please refresh.` });
-    } finally { setLoading(false); setRefreshing(false); }
-  }, [weatherData, refreshing]);
+       if (city === selectedCity) {
+         setGlobalAlertStatus(prev => ({ ...prev, status: 'error' }));
+         setError({ type: 'PROXY', message: `Weather services unreachable. System will auto-reconnect.` });
+       }
+    } finally {
+      if (city === selectedCity) {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    }
+  }, [weatherData, selectedCity, refreshing]);
 
-  const handleRefresh = useCallback(() => { if (!refreshing) loadCityData(selectedCity, true); }, [loadCityData, selectedCity, refreshing]);
+  const handleRefresh = useCallback(() => {
+    loadCityData(selectedCity, true);
+  }, [loadCityData, selectedCity]);
 
-  useEffect(() => { loadCityData(selectedCity, false); }, [selectedCity, loadCityData]);
+  // Initial load for all cities
+  useEffect(() => {
+    const initAll = async () => {
+      for (const city of cities) {
+        await loadCityData(city, false);
+      }
+    };
+    initAll();
+  }, []);
+
+  // Sync selected city on change
+  useEffect(() => {
+    loadCityData(selectedCity, false);
+  }, [selectedCity]);
+
+  // Background sync and Auto-Recovery logic
+  useEffect(() => {
+    const syncInterval = setInterval(async () => {
+      const rateLimited = isCurrentlyRateLimited();
+      
+      for (const city of cities) {
+        const data = weatherData[city];
+        const needsRecovery = !data || data.aiStatus === 'rate_limited' || data.aiStatus === 'failed';
+        
+        const lastUpdate = data?.cacheTimestamp || 0;
+        const normalCooldown = 15 * 60 * 1000;
+        
+        // If we were rate limited but the limit has expired, trigger recovery
+        if (needsRecovery && !rateLimited) {
+          console.log(`Auto-recovery triggered for ${city} - API services restored.`);
+          loadCityData(city, true);
+        } else if (Date.now() - lastUpdate > normalCooldown && !rateLimited) {
+          loadCityData(city, false);
+        }
+      }
+    }, 30000); // Check every 30 seconds for restoration
+
+    return () => clearInterval(syncInterval);
+  }, [weatherData, loadCityData]);
 
   useEffect(() => {
     let timer: any;
-    const currentData = weatherData[selectedCity];
-    if (currentData?.isStale && currentData.cacheTimestamp) {
-      const remainingSeconds = Math.max(0, Math.round((CACHE_TTL - (Date.now() - currentData.cacheTimestamp)) / 1000));
+    const rateLimited = isCurrentlyRateLimited();
+    const resetTime = getRateLimitResetTime();
+    
+    if (rateLimited) {
+      const remainingSeconds = Math.max(0, Math.round((resetTime - Date.now()) / 1000));
       setCountdown(remainingSeconds);
-      timer = setInterval(() => setCountdown(p => (p === null || p <= 1) ? 0 : p - 1), 1000);
-    } else setCountdown(null);
+      timer = setInterval(() => {
+          const rem = Math.max(0, Math.round((resetTime - Date.now()) / 1000));
+          setCountdown(rem);
+          if (rem <= 0) {
+              clearInterval(timer);
+              setCountdown(null);
+              handleRefresh();
+          }
+      }, 1000);
+    } else {
+      setCountdown(null);
+    }
     return () => clearInterval(timer);
-  }, [weatherData, selectedCity]);
+  }, [weatherData, selectedCity, handleRefresh]);
 
   const currentData = weatherData[selectedCity];
+
+  // Aggregate global alerts for notifications
+  useEffect(() => {
+    if (!isMonitoring) return;
+    cities.forEach(city => {
+      const data = weatherData[city];
+      if (data?.alerts?.length) {
+        data.alerts.forEach(alert => {
+          const alertId = `${city}-${alert.title}`;
+          if (!sentAlertsRef.current.has(alertId)) {
+            if (Notification.permission === 'granted') {
+               new Notification(`⚠️ ${alert.severity} Alert: ${city}`, {
+                body: alert.title,
+                icon: '/weather-icon.png'
+              });
+            }
+            sentAlertsRef.current.add(alertId);
+          }
+        });
+      }
+    });
+  }, [weatherData, isMonitoring]);
+
+  const handleOpenKeyDialog = async () => {
+    if (window.aistudio?.openSelectKey) {
+        await window.aistudio.openSelectKey();
+        handleRefresh();
+    }
+  };
 
   return (
     <div className="min-h-screen pb-20 selection:bg-red-500/30">
@@ -132,20 +240,38 @@ const App: React.FC = () => {
                 <button
                   key={city}
                   onClick={() => setSelectedCity(city)}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 ${
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all duration-300 relative ${
                     selectedCity === city 
                       ? 'bg-white text-slate-900 shadow-xl' 
                       : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   {city}
+                  {weatherData[city]?.alerts?.length > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
 
             <div className="flex items-center gap-3">
+               {isCurrentlyRateLimited() && (
+                 <button 
+                  onClick={handleOpenKeyDialog}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold bg-amber-500/10 border border-amber-500/50 text-amber-500 hover:bg-amber-500/20 transition-all"
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  UPGRADE KEY
+                </button>
+               )}
               <button 
-                onClick={() => setIsMonitoring(!isMonitoring)}
+                onClick={async () => {
+                  if (Notification.permission === 'default') await Notification.requestPermission();
+                  setIsMonitoring(!isMonitoring);
+                }}
                 className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold border transition-all duration-300 ${
                   isMonitoring 
                     ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' 
@@ -169,6 +295,30 @@ const App: React.FC = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 mt-12 space-y-12">
+        {error && (
+          <div className={`p-6 rounded-[2rem] border animate-in fade-in slide-in-from-top-4 duration-500 ${
+            error.type === 'QUOTA_STALE' ? 'bg-amber-500/10 border-amber-500/30 text-amber-200' : 'bg-red-500/10 border-red-500/30 text-red-200'
+          }`}>
+             <div className="flex items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-2xl ${error.type === 'QUOTA_STALE' ? 'bg-amber-500/20' : 'bg-red-500/20'}`}>
+                    <AlertTriangle className={`w-6 h-6 ${error.type === 'QUOTA_STALE' ? 'text-amber-500' : 'text-red-500'}`} />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-white">{error.type === 'QUOTA_STALE' ? 'Quota Limit Reached' : 'System Interruption'}</h3>
+                    <p className="text-xs font-medium opacity-80">{error.message}</p>
+                  </div>
+                </div>
+                {countdown !== null && (
+                   <div className="text-right whitespace-nowrap">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-amber-500/80 mb-1">Auto-Resume In</p>
+                      <p className="text-2xl font-black text-white font-mono">{Math.floor(countdown / 60)}:{String(countdown % 60).padStart(2, '0')}</p>
+                   </div>
+                )}
+             </div>
+          </div>
+        )}
+
         {loading && !currentData ? (
           <div className="flex flex-col items-center justify-center py-40 gap-6">
             <div className="w-16 h-16 border-4 border-red-500/20 border-t-red-500 rounded-full animate-spin"></div>
@@ -181,7 +331,6 @@ const App: React.FC = () => {
             {/* Hero Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 glass-panel rounded-[2.5rem] p-10 overflow-hidden relative">
-                {/* Decorative background glow */}
                 <div className="absolute -top-24 -right-24 w-64 h-64 bg-red-600/10 rounded-full blur-[100px]"></div>
                 
                 <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start justify-between h-full">
@@ -328,12 +477,12 @@ const App: React.FC = () => {
                          <Database className={`w-8 h-8 ${currentData.isStale ? 'text-amber-500' : 'text-red-500'}`} />
                        </div>
                        <div>
-                         <p className="text-lg font-extrabold text-white">{currentData.isStale ? 'LOCAL CACHE ACTIVE' : 'REAL-TIME UPLINK'}</p>
+                         <p className="text-lg font-extrabold text-white uppercase">{currentData.isStale ? 'Backup Analytics Active' : 'Real-Time Uplink'}</p>
                          <p className="text-[9px] text-slate-500 font-black tracking-widest uppercase">Verified Satellite Feeds</p>
                        </div>
                     </div>
                     <p className="text-sm text-slate-400 font-medium leading-relaxed mb-8">
-                      Precision data synthesized from Open-Meteo High-Resolution models and verified official reports. Last hardware sync at <span className="text-white">{currentData.lastUpdated}</span>.
+                      Precision data synthesized from Open-Meteo High-Resolution models and verified official reports. {currentData.aiStatus === 'rate_limited' ? 'Advanced modeling is currently in backup mode due to high service traffic.' : 'All systems reporting optimal performance.'} Last Hardware Sync: <span className="text-white">{currentData.lastUpdated}</span>.
                     </p>
                   </div>
                   {currentData.sources?.length > 0 && (
